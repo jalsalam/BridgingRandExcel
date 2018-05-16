@@ -1,0 +1,77 @@
+---
+title: "02-simple-output"
+author: "Jameel Alsalam"
+date: "May 15, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("tidyverse")
+library("readxl")
+library("openxlsx")
+```
+
+## Read in the GHGI Data
+
+In `Table 2-1.xlsx` I have done some formatting of a data table that is included in the annual publishing of the Greenhouse Gas Inventory, just released this past April 15.
+
+
+```{r read}
+ghgi <- read_excel("sheets/Table 2-1.xlsx", "done-ish", na = c("", "+")) %>%
+  gather(key = "year", value = "emissions", `1990`:`2016`)
+
+by_gas <- ghgi %>%
+  group_by(Gas, year) %>%
+  summarize(emissions = sum(emissions, na.rm = TRUE)) %>%
+  ungroup()
+
+by_gas_tbl <- by_gas %>%
+  mutate(Gas = factor(Gas, levels = c("CO2", "CH4", "N2O", "HFCs", "PFCs", "SF6", "NF3"))) %>%
+  arrange(Gas, year) %>%
+  filter(year %in% c("1990", "2005", "2014", "2015", "2016")) %>%
+  spread(year, emissions)
+```
+
+## Simple Output
+
+```{r manualway}
+wb <- loadWorkbook("sheets/simple-output.xlsx")
+#addWorksheet(wb, "bygas")
+writeData(wb, "bygas", by_gas_tbl, 2, 2)
+saveWorkbook(wb, "sheets/simple-output.xlsx", overwrite = TRUE)
+```
+
+
+```{r functionway}
+write_tbl_to_xlsx <- function(x, wb, sheetName=NA_character_) {
+
+  exprx <- rlang::enexpr(x)
+  if (is.na(sheetName)) {sheetName <- rlang::as_string(exprx)}
+  
+    if (! sheetName %in% names(wb)) {
+      addWorksheet(wb, sheetName)
+    }
+  
+  writeData(wb, sheetName, x, 2, 2)
+  invisible(TRUE)
+}
+
+wb <- loadWorkbook("sheets/simple-output.xlsx")
+
+write_tbl_to_xlsx(by_gas_tbl, wb, "bygas")
+
+saveWorkbook(wb, "sheets/simple-output.xlsx", overwrite = TRUE)
+
+```
+
+```{r}
+wb <- createWorkbook()
+
+data_list <- list(iris, mtcars, rivers) %>% set_names(c("iris", "mtcars", "rivers"))
+
+iwalk(data_list, ~write_tbl_to_xlsx(.x, wb, .y))
+saveWorkbook(wb, "sheets/several-tbls.xlsx", overwrite = TRUE)
+```
+
+

@@ -1,0 +1,94 @@
+---
+title: "01-many-sheets"
+author: "Jameel Alsalam"
+date: "May 15, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("tidyverse")
+library("readxl")
+```
+
+## Read data with readxl
+
+Leaning on a readxl [vignette](http://readxl.tidyverse.org/articles/articles/readxl-workflows.html)
+
+Using a workbook that I adapted from an example workbook included in the readxl package in variations.
+
+```{r readxl_examples}
+# list sheets
+excel_sheets("sheets/deaths.xlsx")
+```
+
+If the data is rectangular and located in the upper-left corner, then things are so easy.
+
+```{r}
+read_excel("sheets/deaths.xlsx", sheet = "clean")
+```
+
+
+But often spreadsheets have notes and whitespace surrounding the data.
+
+```{r}
+read_excel("sheets/deaths.xlsx", "original")
+```
+
+If you know where the rectangle is, its no problem.
+
+```{r}
+orig_data <- read_excel("sheets/deaths.xlsx", "original", skip = 4)
+
+orig_data
+```
+
+
+```{r}
+nrow(orig_data)
+```
+
+
+
+## Many sheets (or workbooks)
+
+Reading in many sheets or workbooks at once requires:
+1) Using a consistent structure (and a function to read it using `readxl`)
+2) Applying that function to each workbook with `purrr`
+
+```{r template}
+
+read_template <- function(wb, sheet) {
+  # read metadata
+  metadata <- read_excel(wb, sheet, range = "A1:B3", 
+                         col_names = c("meta", "value")) %>% 
+    spread(meta, value) %>%
+    as.list()
+  
+  # read data and append metadata
+  data <- read_excel(wb, sheet, skip = 4) %>%
+    mutate(Category = metadata[["Category"]],
+           File = metadata[["File"]],
+           Source = metadata[["Source"]])
+  
+}
+
+arts <- read_template("sheets/deaths.xlsx", "arts")
+
+```
+
+And now this can be applied to multiple sheets with `purrr::map_dfr`
+
+```{r}
+
+deaths <- map_dfr(c("arts", "other"),
+                  ~read_template("sheets/deaths.xlsx", .x))
+
+View(deaths)
+deaths
+```
+
+Note that both 'Categories' are included.
+
+
+
